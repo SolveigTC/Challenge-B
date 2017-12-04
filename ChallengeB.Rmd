@@ -1,0 +1,279 @@
+---
+title: "ChallengeB"
+author: "Audrey Orban and Solveig Thomas-Chemin"
+date: "28 novembre 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## TASK 1B
+
+
+##Step 1:
+We will use the method "Random Forest". Random forests or random decision forests are an ensemble learning method for classification or regression, that operate by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees. Random Forest is a machine learning algorithm which is effective to spot the links between variable to explain and explanatory variable. Random Forest will classify the explanatory variables according to their links with the variable to explain. 
+
+## We import the database.
+```{r chalB}
+load.libraries <- c('tidyverse', 'np', 'caret', 'tidyr', 'dplyr', 'magrittr', 'markdown', 'randomForest', 'ggplot2')
+```
+
+```{r train}
+train <- read.csv(file = "train.csv")
+attach(train)
+head(train)
+```
+
+
+## Step 2
+We have chosen the technic Random Forest. And we train the chosen technique on the training data.
+
+```{r names}
+colnames(train)
+
+train[sapply(train, is.character)] <- lapply(train[sapply(train, is.character)], as.factor)
+
+```
+
+
+We decided to work with only four explained variables and the target variables.
+```{r chosevaraible}
+library(dplyr)
+library(tidyr)
+train2 <- select(train, SalePrice, TotalBsmtSF, OverallQual, YrSold, LotArea)
+str(train2)
+```
+
+We see that we have 1460 observations of 6 variables. 
+
+For this step, we need to make a prediction, and we use randomForest.
+```{r step2.1}
+set.seed(123)
+library(randomForest)
+predict <- randomForest(SalePrice ~ ., data= train2, na.action= na.roughfix) 
+```
+R did not say anything in particular, so everything works.
+We want to see what is in the "predict". 
+```{r print}
+print(predict)
+```
+
+We want to know if we have a confusion matrix. But we have a regression and not classification so it is quite normal. 
+```{r conf}
+predict$confusion
+```
+We put some plot.
+```{r classement}
+varImpPlot(predict)
+```
+We want to know which variable have the most influence on the sale price.
+```{r plot}
+predict$importance[order(predict$importance[,1], decreasing = TRUE),]
+```
+The two criteria that matter most to distinguish the selling price are 1.The rate the overall material and finish of the house and 2. the physical location within Ames city limits.
+```{r plots}
+library(ggplot2)
+plot(SalePrice ~ OverallQual, data=train2)
+plot(SalePrice ~ TotalBsmtSF, data=train2)
+```
+
+We notice that the higher the overall quality, the higher the sale of sales.
+We note that the higher the total square feet of basement area, the higher the price of the house is .
+
+Now we want to improve the random forest prediction.we want to minimize the regression errors be trying to optimize the number oh trees and mtry.
+First : Chose of the number of trees.
+```{r tree400}
+set.seed(123)
+predict3 <- randomForest(SalePrice ~ ., data=train2, ntree=400, mtry=1, na.action = na.roughfix)
+print(predict3)
+```
+When we choose a smaller number of trees, the percentage of the var explained decrease, so we will look at 1000 trees.
+```{r nbtree1000}
+set.seed(123)
+predict2 <- randomForest(SalePrice ~ ., data=train2, ntree=1000, mtry=1, na.action = na.roughfix)
+predict2
+```
+
+
+The percentage of the var explained has also decreased compared to 500. 
+We try with 600, it's also decrease, so the best number of trees is 500.
+```{r tree600}
+set.seed(123)
+predict4 <- randomForest(SalePrice ~ ., data=train2, ntree=600, mtry=1, na.action = na.roughfix)
+print(predict4)
+```
+
+We chose to take 500 trees. We will now choose the optimal mtry.
+```{r mtry2}
+set.seed(123)
+predict8 <- randomForest(SalePrice ~ ., data=train2, ntree=500, mtry=2, na.action = na.roughfix)
+print(predict8)
+```
+We choose mtry = 2. We notice that the percentage of variable explained has roughly increased, from 74.44% to 75.34%.
+```{r mtry3}
+set.seed(123)
+predict6 <- randomForest(SalePrice ~ ., data=train2, ntree=500, mtry=3, na.action = na.roughfix)
+print(predict6)
+```
+We choose a mtry equal to 3, and we notice that the percentage of var explained has increased compared to 1 but decreased compared to 2.
+```{r mtry4}
+set.seed(123)
+predict7 <- randomForest(SalePrice ~ ., data=train2, ntree=500, mtry=4, na.action = na.roughfix)
+print(predict7)
+```
+We choose a mtry equal to 4, and we notice that the percentage of var explained has decreased compared to all the other one.
+The best prediction is ntree = 500 and mtry=2. To conclude we choose a number of trees equal to 500 and a mtry equal to 2.
+
+##Step 3
+Prediction on the test data. 
+```{r step3.1}
+test <- read.csv(file = "test.csv")
+attach(test)
+attach(train)
+lmmodel1 <- lm(SalePrice ~ MSZoning + LotArea + Neighborhood + YearBuilt + OverallQual, data=train)
+predictiontest <- data.frame(Id = test$Id, SalePrice_predict = predict(lmmodel1, test, type="response"))
+```
+
+Prediction of the linear regression with SaleCondition, SaleType, MSSubClass, Street and Utilities variables.
+```{r regressionchose}
+lmmodel2 <- lm(SalePrice~ SaleCondition + SaleType + MSSubClass + Street + Utilities, data=train)
+predictiontrain <- data.frame(Id=test$Id, SalePrice_predict1=predict(lmmodel2, test, type="response"))
+```
+
+Now we compared the two predictions : 
+```{r summary}
+summary(predictiontest)
+summary(predictiontrain)
+```
+We notice that the mean of the sale price predict with the first linear regression is approximalety the same as the sale price predict with the second linear regression. 
+
+
+
+##Task 2B
+
+#Step 1
+```{r step1}
+library(tidyverse)
+library(np)
+library(caret)
+
+set.seed(1) 
+Nsim <- 150 
+b <- c(0,1) 
+x0 <- rep(1, Nsim) 
+x1 <- rnorm(n = Nsim)
+X <- cbind(x0, x1^3)
+y.true <- X %*% b
+eps <- rnorm(n = Nsim)
+y <- X %*% b + eps
+df <- tbl_df(y[,1]) %>% rename(y = value) %>% bind_cols(tbl_df(x1)) %>% rename(x = value) %>% bind_cols(tbl_df(y.true[,1])) %>% rename(y.true = value)
+
+training.index <- createDataPartition(y = y, times = 1, p = 0.8)
+df <- df %>% mutate(which.data = ifelse(1:n() %in% training.index$Resample1, "training", "test"))
+
+training <- df %>% filter(which.data == "training")
+test <- df %>% filter(which.data == "test")
+```
+# Train local linear model y ~ x on training with each bandwidth
+```{r step1.2}
+ll.fit.lowflex <- npreg(y ~ x, data = training, method = "ll", bws = 0.5)
+summary(ll.fit.lowflex)
+```
+
+
+
+#Step 2
+```{r step2}
+ll.fit.highflex <- npreg(y ~ x, data = training, method = "ll", bws = 0.01)
+summary(ll.fit.highflex)
+```
+
+
+
+
+#Step 3
+```{r step3}
+library(ggplot2)
+df <- df %>% mutate(y.ll.lowflex = predict(object = ll.fit.lowflex, newdata = df), y.ll.highflex = predict(object = ll.fit.highflex, newdata = df))
+training <- training %>% mutate(y.ll.lowflex = predict(object = ll.fit.lowflex, newdata = training), y.ll.highflex = predict(object = ll.fit.highflex, newdata = training))
+df
+
+ggplot(df) + geom_point(data=training, mapping = aes(x = x, y = y)) + 
+  geom_line(mapping = aes(x = x, y = y.true)) + geom_line(data= training, mapping = aes(x = x, y = y.ll.lowflex), color="red") + geom_line(data = training, mapping = aes(x = x, y = y.ll.highflex), color = "blue") 
+```
+
+#Step 4
+The prediction which is the more variable is the prediction of the model ll.fit.highflex, which is the high-flexibility local linear model. Indeed, the blue curve fluctuates much more than the red curve.  
+
+The prediction which have the least bias is also the prediction of the model ll.fit.highflex. We notice that because the blue curve follows the points, which means that there is almost not bias.Then, the model is over-fitted.
+
+#Step 5
+```{r step5 }
+df <- df %>% mutate(y.ll.lowflex = predict(object = ll.fit.lowflex, newdata = df), y.ll.highflex = predict(object = ll.fit.highflex, newdata = df))
+test <- test %>% mutate(y.ll.lowflex = predict(object = ll.fit.lowflex, newdata = test), y.ll.highflex = predict(object = ll.fit.highflex, newdata = test))
+df
+
+ggplot(df) + geom_point(data=test, mapping = aes(x = x, y = y)) + 
+  geom_line(mapping = aes(x = x, y = y.true)) + geom_line(data= test, mapping = aes(x =x, y = y.ll.lowflex), color="red") + geom_line(data= test, mapping = aes(x =x, y = y.ll.highflex), color ="blue")
+```
+
+The prediction which is the more variable is the prediction of the model ll.fit.highflex, which is the high-flexibility local linear model. Indeed, the blue curve fluctuates much more than the red curve.  
+
+We said in the step 4 that the model which have the least bias was ll.fit.highflex, so we will be interested at the blue curve. Here, wee notice that the bias in this step is higher than the bias in the step 4 because it follows the points less, the gap between the blue curve and the points is higher. Then now, the model is just right.
+
+#Step 6
+```{r step6}
+bw <- seq(0.01, 0.5, by = 0.001)
+```
+
+
+#Step 7
+```{r step7}
+llbw.fit <- lapply(X = bw, FUN = function(bw) {npreg(y ~ x, data = training, method = "ll", bws = bw)})
+```
+
+#Step 8
+```{r step8}
+mse.training <- function(fit.model){
+  predictions <- predict(object = fit.model, newdata = training)
+  training %>% mutate(squared.error = (y - predictions)^2) %>% summarize(mse = mean(squared.error))
+}
+mse.train.results <- unlist(lapply(X = llbw.fit, FUN = mse.training))
+```
+
+#Step 9 
+```{r step9}
+mse.test <- function(fit.model){
+  predictions <- predict(object = fit.model, newdata = test)
+  test %>% mutate(squared.error = (y - predictions)^2) %>% summarize(mse = mean(squared.error))
+}
+mse.test.results <- unlist(lapply(X = llbw.fit, FUN = mse.test))
+```
+
+#Step 10
+```{r step10}
+mse.df <- tbl_df(data.frame(bandwidth = bw, mse.train = mse.train.results, mse.test = mse.test.results))
+
+ggplot(mse.df) + 
+  geom_line(mapping = aes(x = bandwidth, y = mse.train), color = "blue") +
+  geom_line(mapping = aes(x = bandwidth, y = mse.test), color = "orange")
+```
+
+Comment: Comparison of the training set error to the test set error for the regression problem. 
+When the bandwidth parameter increases, we go from a model over-fitted to a model just right. But, if the bandwidth parameter increases too much, we go from a model under-fitted and it is not good. 
+
+
+##Task 3B
+
+#Step 1
+The file CNIL is small enough to import it without using any particular method.
+
+```{r import data}
+CNIL <- read.csv(file = "OpenCNIL_Organismes_avec_CIL_VD_20171115.csv")
+```
+
+
